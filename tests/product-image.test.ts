@@ -1,6 +1,8 @@
-import { createElement } from "react";
+// @vitest-environment happy-dom
+import { act, createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { ProductImage } from "@/components/product-image";
 import { renderDigest } from "@/lib/email";
 import { digestProductImageHtml, productImageMode, safeImageUrl } from "@/lib/product-image";
@@ -8,6 +10,36 @@ import { MOCK_CATALOG } from "@/lib/providers/mock-catalog";
 import { parseRakutenProducts } from "@/lib/providers/parse-rakuten";
 
 describe("product image fallback", () => {
+  let root: Root | undefined;
+  let host: HTMLDivElement | undefined;
+
+  afterEach(() => {
+    act(() => {
+      root?.unmount();
+    });
+    host?.remove();
+    root = undefined;
+    host = undefined;
+  });
+
+  async function renderImage(src: string, alt: string) {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    act(() => {
+      root?.unmount();
+    });
+    host?.remove();
+    host = document.createElement("div");
+    host.style.position = "relative";
+    host.style.width = "120px";
+    host.style.height = "90px";
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(createElement(ProductImage, { src, alt }));
+    });
+    return host;
+  }
+
   it("uses the placeholder when the image URL is missing", () => {
     expect(productImageMode("", false)).toBe("placeholder");
     expect(productImageMode("   ", false)).toBe("placeholder");
@@ -20,10 +52,47 @@ describe("product image fallback", () => {
     expect(html).not.toContain("<img");
   });
 
-  it("uses the placeholder when the image fails to load", () => {
+  it("uses the placeholder when the image fails to load", async () => {
     const src = "https://cdn.example.com/mug.jpg";
     expect(productImageMode(src, false)).toBe("photo");
     expect(productImageMode(src, true)).toBe("placeholder");
+
+    const alt = "Handmade Ceramic Mug";
+    const working = await renderImage("/products/mug.svg", alt);
+    const photo = working.querySelector("img");
+    expect(photo).not.toBeNull();
+    expect(photo?.getAttribute("alt")).toBe(alt);
+    expect(photo?.getAttribute("src")).toContain("/products/mug.svg");
+    expect(working.querySelector('[data-product-image="placeholder"]')).toBeNull();
+
+    const broken = await renderImage("/products/missing-r2.svg", alt);
+    const img = broken.querySelector("img");
+    expect(img).not.toBeNull();
+    await act(async () => {
+      img?.dispatchEvent(new Event("error"));
+    });
+    const placeholder = broken.querySelector('[data-product-image="placeholder"]');
+    const empty = renderToStaticMarkup(createElement(ProductImage, { src: "", alt }));
+    expect(placeholder).not.toBeNull();
+    expect(placeholder?.outerHTML).toBe(empty);
+    expect(broken.querySelector("img")).toBeNull();
+  });
+
+  it("uses the placeholder when a missed load error left no pixels", async () => {
+    const original = HTMLImageElement.prototype.decode;
+    HTMLImageElement.prototype.decode = () => Promise.reject(new DOMException("broken", "EncodingError"));
+    try {
+      const view = await renderImage("/products/missing-r2.svg", "Wool socks");
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      const placeholder = view.querySelector('[data-product-image="placeholder"]');
+      expect(placeholder?.getAttribute("aria-label")).toBe("Wool socks");
+      expect(placeholder?.getAttribute("data-product-image")).toBe("placeholder");
+      expect(view.querySelector("img")).toBeNull();
+    } finally {
+      HTMLImageElement.prototype.decode = original;
+    }
   });
 
   it("keeps a usable photo URL and names the product", () => {

@@ -1,25 +1,43 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { productImageMode, safeImageUrl } from "@/lib/product-image";
 
 export function ProductImage({ src, alt }: { src: string; alt: string }) {
-  const [failed, setFailed] = useState(false);
   const safe = safeImageUrl(src);
   const label = alt.trim() || "Product";
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const failed = failedSrc === safe;
+
+  useEffect(() => {
+    const img = imgRef.current;
+    // A 404 can finish before hydration, and React does not replay that error.
+    // naturalWidth is also 0 for some loaded SVGs, so confirm with decode().
+    if (!img || !img.complete || img.naturalWidth !== 0 || typeof img.decode !== "function") return;
+    let active = true;
+    img.decode().catch(() => {
+      if (active) setFailedSrc(safe);
+    });
+    return () => {
+      active = false;
+    };
+  }, [safe]);
+
   if (productImageMode(safe, failed) === "placeholder") {
     return <ProductPlaceholder label={label} />;
   }
   return (
     <Image
+      ref={imgRef}
       src={safe}
       alt={label}
       fill
       unoptimized
       sizes="240px"
       className="object-contain p-2"
-      onError={() => setFailed(true)}
+      onError={() => setFailedSrc(safe)}
     />
   );
 }
