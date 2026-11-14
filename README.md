@@ -15,6 +15,16 @@ Copy `.env.example` to `.env` first if you do not already have one. The sample c
 
 Reset the sample data with `npm run db:reset`.
 
+## Upgrading an existing database
+
+If you already have a Gift Hunter database, `npm run dev` stops at plain `prisma db push`. Prisma treats the new uniqueness check on purchases as a possible data loss and will not apply it unless you accept that warning. Run this once:
+
+```bash
+npm run db:upgrade
+```
+
+That is `prisma db push --accept-data-loss`. It is safe for this change. Purchases saved before the occurrence key existed keep a NULL `occurrenceKey`, and no tables or rows are dropped. After it finishes, `npm run dev` works as usual.
+
 ## What you can do
 
 - Add and edit people: name, relationship, likes, dislikes, hobbies, a budget in US dollars, and an optional email. A missing name, a negative budget, or a non-numeric budget is rejected. A blank email is fine; a malformed one is not. The address is only for your reference. Digests still go to `DIGEST_TO` or `OWNER_EMAIL`, never to the person.

@@ -25,13 +25,28 @@ function schemaWithoutPurchaseOccurrenceKey(source: string): string {
   return source.slice(0, start) + stripped + source.slice(end);
 }
 
-function pushSchema(schemaPath: string) {
-  execFileSync(prismaBin, ["db", "push", "--schema", schemaPath, "--skip-generate", "--accept-data-loss"], {
-    cwd: repoRoot,
-    env: { ...process.env, DATABASE_URL: `file:${databasePath}` },
-    stdio: "pipe",
-    encoding: "utf8",
-  });
+function pushSchema(schemaPath: string, acceptDataLoss: boolean) {
+  const args = ["db", "push", "--schema", schemaPath, "--skip-generate"];
+  if (acceptDataLoss) args.push("--accept-data-loss");
+  try {
+    const stdout = execFileSync(prismaBin, args, {
+      cwd: repoRoot,
+      env: { ...process.env, DATABASE_URL: `file:${databasePath}` },
+      stdio: "pipe",
+      encoding: "utf8",
+    });
+    return { status: 0, output: stdout };
+  } catch (error) {
+    const failed = error as { status?: number; stdout?: string; stderr?: string };
+    return {
+      status: failed.status ?? 1,
+      output: `${failed.stdout ?? ""}\n${failed.stderr ?? ""}`,
+    };
+  }
+}
+
+function purchaseSnapshot(db: DatabaseSync) {
+  return db.prepare('SELECT * FROM "Purchase" ORDER BY "id"').all();
 }
 
 describe("legacy purchase rows survive db push", () => {
@@ -40,9 +55,10 @@ describe("legacy purchase rows survive db push", () => {
   });
 
   it("pushes a nullable occurrenceKey onto a database that already has duplicate purchases", async () => {
-    const current = readFileSync(path.join(repoRoot, "prisma", "schema.prisma"), "utf8");
+    const currentSchema = path.join(repoRoot, "prisma", "schema.prisma");
+    const current = readFileSync(currentSchema, "utf8");
     writeFileSync(oldSchemaPath, schemaWithoutPurchaseOccurrenceKey(current));
-    pushSchema(oldSchemaPath);
+    expect(pushSchema(oldSchemaPath, false).status).toBe(0);
 
     const sqlite = new DatabaseSync(databasePath);
     const columns = sqlite.prepare("PRAGMA table_info(Purchase)").all() as { name: string }[];
@@ -92,9 +108,34 @@ describe("legacy purchase rows survive db push", () => {
       "2027-06-01T00:00:00.000Z",
       "2027-06-02T00:00:00.000Z",
     );
+    const before = purchaseSnapshot(sqlite);
+    expect(before).toHaveLength(2);
     sqlite.close();
 
-    expect(() => pushSchema(path.join(repoRoot, "prisma", "schema.prisma"))).not.toThrow();
+    const scripts = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")) as {
+      scripts: { predev: string; "db:upgrade": string };
+    };
+    expect(scripts.scripts["db:upgrade"]).toBe("prisma db push --accept-data-loss");
+    expect(scripts.scripts.predev).not.toContain("accept-data-loss");
+
+    const refused = pushSchema(currentSchema, false);
+    expect(refused.status).not.toBe(0);
+    expect(refused.output.toLowerCase()).toMatch(/data loss/);
+    expect(refused.output).toMatch(/accept-data-loss/);
+
+    const untouched = new DatabaseSync(databasePath);
+    expect((untouched.prepare("PRAGMA table_info(Purchase)").all() as { name: string }[]).map((column) => column.name)).not.toContain(
+      "occurrenceKey",
+    );
+    expect(purchaseSnapshot(untouched)).toEqual(before);
+    untouched.close();
+
+    execFileSync("npm", ["run", "db:upgrade"], {
+      cwd: repoRoot,
+      env: { ...process.env, DATABASE_URL: `file:${databasePath}` },
+      stdio: "pipe",
+      encoding: "utf8",
+    });
 
     const migrated = new DatabaseSync(databasePath);
     const keyColumn = (migrated.prepare("PRAGMA table_info(Purchase)").all() as { name: string; notnull: number }[]).find(
@@ -112,7 +153,18 @@ describe("legacy purchase rows survive db push", () => {
       expect(person?.name).toBe("Maya Chen");
       expect(person?.purchases).toHaveLength(2);
       expect(person?.purchases.map((purchase) => purchase.title)).toEqual(["First pen", "Second pen"]);
-      expect(person?.purchases.map((purchase) => purchase.occurrenceKey)).toEqual([null, null]);
+      expect(person?.purchases.map((purchase) => [purchase.priceCents, purchase.link, purchase.occurrenceKey])).toEqual([
+        [2000, "https://example.com/first", null],
+        [2200, "https://example.com/second", null],
+      ]);
+      expect(person?.purchases.map((purchase) => purchase.occurrenceOn?.toISOString())).toEqual([
+        "2026-06-01T00:00:00.000Z",
+        "2027-06-01T00:00:00.000Z",
+      ]);
+      expect(await client.user.count()).toBe(1);
+      expect(await client.person.count()).toBe(1);
+      expect(await client.occasion.count()).toBe(1);
+      expect(await client.purchase.count()).toBe(2);
       expect(purchaseMatchesOccurrence(person!.purchases[0], "occasion-1", "2026-06-01")).toBe(true);
       expect(purchaseMatchesOccurrence(person!.purchases[0], "occasion-1", "2027-06-01")).toBe(false);
       expect(purchaseMatchesOccurrence(person!.purchases[1], "occasion-1", "2027-06-01")).toBe(true);
