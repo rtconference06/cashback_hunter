@@ -858,6 +858,52 @@ describe("recurring completion is idempotent per occurrence", () => {
     expect(stored.lastCompletedOn?.toISOString().slice(0, 10)).toBe("2026-12-02");
   });
 
+  it("does not treat null legacy keys as the same occurrence", async () => {
+    const now = new Date("2027-07-01T12:00:00Z");
+    const person = await createPerson(validPerson);
+    const birthday = await createOccasion(person.id, {
+      kind: "birthday",
+      title: "Birthday",
+      date: "1990-06-01",
+      recurring: true,
+      budget: "",
+      notes: "",
+    });
+    const firstOn = new Date("2026-06-01T00:00:00.000Z");
+    const secondOn = new Date("2027-06-01T00:00:00.000Z");
+    const base = {
+      personId: person.id,
+      occasionId: birthday.id,
+      occasionTitle: "Birthday",
+      occasionKind: "birthday",
+      occurrenceKey: null,
+      noGift: false,
+      priceCents: 2000,
+      store: "REI",
+      link: "https://example.com/pen",
+      note: "",
+    };
+    await prisma.purchase.create({
+      data: { ...base, title: "First pen", occurrenceOn: firstOn, purchasedOn: firstOn },
+    });
+    await prisma.purchase.create({
+      data: { ...base, title: "Second pen", occurrenceOn: secondOn, purchasedOn: secondOn },
+    });
+    await prisma.occasion.update({
+      where: { id: birthday.id },
+      data: { status: "open", lastCompletedOn: secondOn },
+    });
+
+    const repeatFirst = await completeOccasion(birthday.id, { ...gift("Ignored", "20", "2026-06-01"), occurrenceOn: "2026-06-01" }, now);
+    const repeatSecond = await completeOccasion(birthday.id, { ...gift("Ignored", "20", "2027-06-01"), occurrenceOn: "2027-06-01" }, now);
+    expect(repeatFirst.title).toBe("First pen");
+    expect(repeatSecond.title).toBe("Second pen");
+    expect(repeatFirst.id).not.toBe(repeatSecond.id);
+    const rows = await prisma.purchase.findMany({ where: { occasionId: birthday.id }, orderBy: { createdAt: "asc" } });
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.occurrenceKey)).toEqual([null, null]);
+  });
+
   it("refuses a second database row for the same occurrence", async () => {
     const now = new Date("2026-07-01T12:00:00Z");
     const person = await createPerson(validPerson);

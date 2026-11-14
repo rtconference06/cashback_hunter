@@ -8,6 +8,28 @@ export function occurrenceKeyFor(occurrence: Date | null | undefined): string {
   return formatDateInput(occurrence);
 }
 
+/**
+ * Key stored for a purchase. A null occurrenceKey is a legacy row: use its date,
+ * and do not treat that null as a match for any other occurrence.
+ */
+export function storedPurchaseOccurrenceKey(purchase: {
+  occurrenceKey?: string | null;
+  occurrenceOn?: Date | null;
+}): string {
+  const key = purchase.occurrenceKey?.trim() ?? "";
+  if (key) return key;
+  return occurrenceKeyFor(purchase.occurrenceOn);
+}
+
+export function purchaseMatchesOccurrence(
+  purchase: { occasionId: string; occurrenceKey?: string | null; occurrenceOn?: Date | null },
+  occasionId: string,
+  occurrenceOn: string,
+): boolean {
+  if (purchase.occasionId !== occasionId) return false;
+  return storedPurchaseOccurrenceKey(purchase) === occurrenceOn;
+}
+
 export function resolveCompletionTarget(requested: string | undefined, active: Date | null): Date | null {
   const raw = (requested ?? "").trim();
   if (!raw || raw === UNDATED_OCCURRENCE) return active;

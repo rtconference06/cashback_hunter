@@ -9,6 +9,7 @@ import {
   occurrenceKeyFor,
   resolveCompletionTarget,
   shouldAcceptNewCompletion,
+  storedPurchaseOccurrenceKey,
 } from "@/lib/completion";
 import {
   OCCASION_KINDS,
@@ -240,6 +241,21 @@ function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }
 
+type PurchaseReader = Prisma.TransactionClient | typeof prisma;
+
+/** Keyed rows match the unique index. Legacy null keys match only their own occurrence date. */
+async function findPurchaseForOccurrence(db: PurchaseReader, occasionId: string, occurrenceKey: string) {
+  const keyed = await db.purchase.findUnique({
+    where: { occasionId_occurrenceKey: { occasionId, occurrenceKey } },
+  });
+  if (keyed) return keyed;
+  const legacy = await db.purchase.findMany({
+    where: { occasionId, occurrenceKey: null },
+    orderBy: { createdAt: "asc" },
+  });
+  return legacy.find((row) => storedPurchaseOccurrenceKey(row) === occurrenceKey) ?? null;
+}
+
 export async function completeOccasion(occasionId: string, input: PurchaseInput, now = new Date()) {
   const owner = await getOwner();
   const occasion = await prisma.occasion.findFirst({
@@ -254,9 +270,7 @@ export async function completeOccasion(occasionId: string, input: PurchaseInput,
   const target = resolveCompletionTarget(input.occurrenceOn, active);
   const occurrenceKey = occurrenceKeyFor(target);
 
-  const existing = await prisma.purchase.findUnique({
-    where: { occasionId_occurrenceKey: { occasionId: occasion.id, occurrenceKey } },
-  });
+  const existing = await findPurchaseForOccurrence(prisma, occasion.id, occurrenceKey);
   if (existing) return existing;
 
   if (occasion.status === "completed") {
@@ -299,9 +313,7 @@ export async function completeOccasion(occasionId: string, input: PurchaseInput,
 
   try {
     return await prisma.$transaction(async (tx) => {
-      const again = await tx.purchase.findUnique({
-        where: { occasionId_occurrenceKey: { occasionId: occasion.id, occurrenceKey } },
-      });
+      const again = await findPurchaseForOccurrence(tx, occasion.id, occurrenceKey);
       if (again) return again;
       const purchase = await tx.purchase.create({
         data: {

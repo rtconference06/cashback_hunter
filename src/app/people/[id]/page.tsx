@@ -20,7 +20,7 @@ import {
 } from "@/lib/dates";
 import { dealsFromStored, maxDealsFromEnv } from "@/lib/deals";
 import { parseStoredList } from "@/lib/lists";
-import { offerCompletion, occurrenceKeyFor } from "@/lib/completion";
+import { offerCompletion, purchaseMatchesOccurrence } from "@/lib/completion";
 import { formatMoney } from "@/lib/money";
 import { getPerson, listPeople } from "@/lib/people";
 import { projectOccasion, sortUpcoming, type UpcomingRow } from "@/lib/upcoming";
@@ -334,10 +334,8 @@ async function PersonScreen({ params }: { params: Promise<{ id: string }> }) {
                 today,
               );
               const occurrenceOn = projected?.occurrence ? formatDateInput(projected.occurrence) : "undated";
-              const purchased = person.purchases.some(
-                (purchase) =>
-                  purchase.occasionId === occasion.id &&
-                  (purchase.occurrenceKey || occurrenceKeyFor(purchase.occurrenceOn)) === occurrenceOn,
+              const purchased = person.purchases.some((purchase) =>
+                purchaseMatchesOccurrence(purchase, occasion.id, occurrenceOn),
               );
               const offer = offerCompletion({
                 lastCompletedOn: occasion.lastCompletedOn,
