@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-outfit);
+  --font-serif: var(--font-outfit);
+  --color-paper: #ffffff;
+  --color-ink: #252525;
+  --color-card: #ffffff;
+  --color-line: #dddddd;
+  --color-persimmon: #8529cd;
+  --color-forest: #8529cd;
+  --color-moss: #f6eefb;
+  --color-clay: #f7f7f7;
+  --color-muted: #575757;
+}
+
+body {
+  background: #ffffff;
+  color: #252525;
+  font-family: var(--font-outfit), "Segoe UI", sans-serif;
+}
+
+::selection {
+  background: #e8d4f7;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #8529cd;
+  outline-offset: 2px;
+}

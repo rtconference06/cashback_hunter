@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Single owner for the MVP. People hang off a user so a later login
+/// can scope the same tables without a migration of the core facts.
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  people    Person[]
+}
+
+model Person {
+  id                 String     @id @default(cuid())
+  userId             String
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  relationship       String
+  /// Optional reference address. Digests are never sent here.
+  email              String     @default("")
+  /// JSON string array
+  likes              String
+  /// JSON string array
+  dislikes           String
+  /// JSON string array
+  hobbies            String
+  defaultBudgetCents Int
+  notes              String     @default("")
+  /// Set when the owner archives someone. Null means they are on the active lists.
+  archivedAt         DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  occasions          Occasion[]
+  purchases          Purchase[]
+  searchRuns         SearchRun[]
+  digests            Digest[]
+  savedDeals         SavedDeal[]
+}
+
+model Occasion {
+  id          String      @id @default(cuid())
+  personId    String
+  person      Person      @relation(fields: [personId], references: [id], onDelete: Cascade)
+  /// birthday | anniversary | teachers_day | holiday | custom | adhoc
+  kind        String
+  /// For adhoc, this is the free-text need.
+  title       String
+  /// Calendar date at UTC midnight. For adhoc, an optional deadline. Null means "whenever".
+  date        DateTime?
+  recurring   Boolean     @default(false)
+  /// Overrides the person's default budget when set.
+  budgetCents Int?
+  notes       String      @default("")
+  /// open | completed. Yearly occasions stay open and roll forward; adhoc closes.
+  status      String      @default("open")
+  /// The calendar occurrence that was last marked complete. Overdue cycles stay put until this is set.
+  lastCompletedOn DateTime?
+  createdAt   DateTime    @default(now())
+  searchRuns  SearchRun[]
+  digests     Digest[]
+  purchases   Purchase[]
+}
+
+model Purchase {
+  id             String    @id @default(cuid())
+  personId       String
+  person         Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
+  occasionId     String
+  occasion       Occasion  @relation(fields: [occasionId], references: [id], onDelete: Cascade)
+  occasionTitle  String
+  occasionKind   String
+  /// The occurrence date that was completed. Null for an undated ad-hoc need.
+  occurrenceOn   DateTime?
+  noGift         Boolean   @default(false)
+  title          String    @default("")
+  priceCents     Int?
+  store          String    @default("")
+  link           String    @default("")
+  purchasedOn    DateTime
+  note           String    @default("")
+  createdAt      DateTime  @default(now())
+}
+
+model SearchRun {
+  id          String          @id @default(cuid())
+  personId    String
+  person      Person          @relation(fields: [personId], references: [id], onDelete: Cascade)
+  occasionId  String?
+  occasion    Occasion?       @relation(fields: [occasionId], references: [id], onDelete: SetNull)
+  provider    String
+  query       String
+  budgetCents Int
+  createdAt   DateTime        @default(now())
+  options     ProductOption[]
+  digests     Digest[]
+}
+
+model ProductOption {
+  id             String    @id @default(cuid())
+  searchRunId    String
+  searchRun      SearchRun @relation(fields: [searchRunId], references: [id], onDelete: Cascade)
+  title          String
+  description    String    @default("")
+  priceCents          Int
+  listPriceCents      Int?
+  cashbackPercent     Float         @default(0)
+  effectivePriceCents Int
+  category            String        @default("")
+  store               String
+  imageUrl            String        @default("")
+  link                String
+  whyMatched          String
+  rank                Int
+  score               Float
+  favorite            Boolean       @default(false)
+}
+
+model Digest {
+  id            String     @id @default(cuid())
+  personId      String
+  person        Person     @relation(fields: [personId], references: [id], onDelete: Cascade)
+  occasionId    String?
+  occasion      Occasion?  @relation(fields: [occasionId], references: [id], onDelete: SetNull)
+  searchRunId   String?
+  searchRun     SearchRun? @relation(fields: [searchRunId], references: [id], onDelete: SetNull)
+  /// Calendar day of the occurrence, or need:<occasionId>, so the schedule sends once.
+  occurrenceKey String
+  to            String
+  subject       String
+  bodyText      String
+  bodyHtml      String
+  /// sent | logged | failed
+  status        String
+  provider      String
+  error         String     @default("")
+  createdAt     DateTime   @default(now())
+
+  @@index([personId, occasionId, occurrenceKey])
+}
+
+/// A dismissed or favorited listing, keyed by its link so it survives the next search.
+model SavedDeal {
+  id         String   @id @default(cuid())
+  personId   String
+  person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  productKey String
+  /// favorite | dismissed
+  state      String
+  createdAt  DateTime @default(now())
+
+  @@unique([personId, productKey])
+}
