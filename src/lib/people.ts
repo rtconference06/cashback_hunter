@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma, getOwner } from "@/lib/db";
 import { activeOccurrence, ownerToday, parseDateInput, recursYearly } from "@/lib/dates";
 import { displayStore } from "@/lib/deals";
@@ -5,10 +6,17 @@ import { safeImageUrl } from "@/lib/product-image";
 import { parseStoredList } from "@/lib/lists";
 import { dollarsToCents } from "@/lib/money";
 import {
+  occurrenceKeyFor,
+  resolveCompletionTarget,
+  shouldAcceptNewCompletion,
+  storedPurchaseOccurrenceKey,
+} from "@/lib/completion";
+import {
   OCCASION_KINDS,
   ValidationError,
   parseOptionalBudget,
   parsePerson,
+  parsePurchaseLink,
   type PersonInput,
 } from "@/lib/validation";
 import { upcomingForPeople, type UpcomingPerson, type UpcomingRow } from "@/lib/upcoming";
@@ -218,7 +226,35 @@ export type PurchaseInput = {
   imageUrl?: string;
   purchasedOn: string;
   note: string;
+  /** Occurrence the form was showing. A repeat submit for this date does not roll forward. */
+  occurrenceOn?: string;
 };
+
+async function latestPurchase(occasionId: string) {
+  return prisma.purchase.findFirst({
+    where: { occasionId },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+type PurchaseReader = Prisma.TransactionClient | typeof prisma;
+
+/** Keyed rows match the unique index. Legacy null keys match only their own occurrence date. */
+async function findPurchaseForOccurrence(db: PurchaseReader, occasionId: string, occurrenceKey: string) {
+  const keyed = await db.purchase.findUnique({
+    where: { occasionId_occurrenceKey: { occasionId, occurrenceKey } },
+  });
+  if (keyed) return keyed;
+  const legacy = await db.purchase.findMany({
+    where: { occasionId, occurrenceKey: null },
+    orderBy: { createdAt: "asc" },
+  });
+  return legacy.find((row) => storedPurchaseOccurrenceKey(row) === occurrenceKey) ?? null;
+}
 
 export async function completeOccasion(occasionId: string, input: PurchaseInput, now = new Date()) {
   const owner = await getOwner();
@@ -227,15 +263,31 @@ export async function completeOccasion(occasionId: string, input: PurchaseInput,
     include: { person: true },
   });
   if (!occasion) throw new NotFoundError("That occasion is not on your list.");
-  if (occasion.status === "completed") {
-    throw new ValidationError("That occasion is already completed.");
-  }
 
   const today = ownerToday(now);
   const recurring = recursYearly(occasion.kind, occasion.recurring);
-  const occurrence = occasion.date
-    ? activeOccurrence(occasion.date, today, occasion.lastCompletedOn, recurring)
-    : null;
+  const active = occasion.date ? activeOccurrence(occasion.date, today, occasion.lastCompletedOn, recurring) : null;
+  const target = resolveCompletionTarget(input.occurrenceOn, active);
+  const occurrenceKey = occurrenceKeyFor(target);
+
+  const existing = await findPurchaseForOccurrence(prisma, occasion.id, occurrenceKey);
+  if (existing) return existing;
+
+  if (occasion.status === "completed") {
+    const prior = await latestPurchase(occasion.id);
+    if (prior) return prior;
+    throw new ValidationError("That occasion is already completed.");
+  }
+
+  if (!shouldAcceptNewCompletion({ lastCompletedOn: occasion.lastCompletedOn, target, today })) {
+    const prior = await latestPurchase(occasion.id);
+    if (prior) return prior;
+    throw new ValidationError("That occurrence is already complete.");
+  }
+
+  if (occurrenceKey !== occurrenceKeyFor(active)) {
+    throw new ValidationError("That occurrence is not open for completion.");
+  }
 
   let title = "";
   let priceCents: number | null = null;
@@ -252,39 +304,51 @@ export async function completeOccasion(occasionId: string, input: PurchaseInput,
     priceCents = dollarsToCents(price);
     if (priceCents < 0) throw new ValidationError("Price paid cannot be negative.");
     store = displayStore(input.store);
-    link = input.link.trim();
+    link = parsePurchaseLink(input.link);
     imageUrl = safeImageUrl(input.imageUrl);
   }
 
   const purchasedOn = input.purchasedOn.trim() ? parseDateInput(input.purchasedOn) : today;
   if (!purchasedOn) throw new ValidationError("That purchase date is not a real calendar day.");
 
-  const purchase = await prisma.purchase.create({
-    data: {
-      personId: occasion.personId,
-      occasionId: occasion.id,
-      occasionTitle: occasion.title,
-      occasionKind: occasion.kind,
-      occurrenceOn: occurrence,
-      noGift: input.noGift,
-      title,
-      priceCents,
-      store,
-      link,
-      imageUrl,
-      purchasedOn,
-      note: input.note.trim(),
-    },
-  });
-
-  await prisma.occasion.update({
-    where: { id: occasion.id },
-    data: recurring
-      ? { status: "open", lastCompletedOn: occurrence }
-      : { status: "completed", lastCompletedOn: occurrence },
-  });
-
-  return purchase;
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const again = await findPurchaseForOccurrence(tx, occasion.id, occurrenceKey);
+      if (again) return again;
+      const purchase = await tx.purchase.create({
+        data: {
+          personId: occasion.personId,
+          occasionId: occasion.id,
+          occasionTitle: occasion.title,
+          occasionKind: occasion.kind,
+          occurrenceOn: target,
+          occurrenceKey,
+          noGift: input.noGift,
+          title,
+          priceCents,
+          store,
+          link,
+          imageUrl,
+          purchasedOn,
+          note: input.note.trim(),
+        },
+      });
+      await tx.occasion.update({
+        where: { id: occasion.id },
+        data: recurring
+          ? { status: "open", lastCompletedOn: target }
+          : { status: "completed", lastCompletedOn: target },
+      });
+      return purchase;
+    });
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) throw error;
+    const prior = await prisma.purchase.findUnique({
+      where: { occasionId_occurrenceKey: { occasionId: occasion.id, occurrenceKey } },
+    });
+    if (prior) return prior;
+    throw error;
+  }
 }
 
 export async function setDealState(personId: string, productKey: string, state: "favorite" | "dismissed") {

@@ -55,6 +55,7 @@ export function PersonForm({
   personId,
   defaults,
   submitLabel,
+  initialState = null,
 }: {
   personId?: string;
   defaults?: {
@@ -68,9 +69,11 @@ export function PersonForm({
     notes: string;
   };
   submitLabel: string;
+  initialState?: ActionState;
 }) {
   const action = personId ? updatePersonAction.bind(null, personId) : createPersonAction;
-  const [state, formAction] = useActionState(action, null);
+  const [state, formAction] = useActionState(action, initialState ?? null);
+  const emailError = state?.fieldErrors?.email;
   return (
     <form action={formAction} className="grid gap-4">
       <Banner state={state} />
@@ -87,8 +90,23 @@ export function PersonForm({
           <option value="Neighbor" />
         </datalist>
       </Field>
-      <Field label="Email" hint="Optional. Kept for your reference. Digests still go to you, not to them.">
-        <Input name="email" type="text" inputMode="email" autoComplete="email" defaultValue={defaults?.email} placeholder="maya@example.com" />
+      <Field
+        label="Email"
+        hint="Optional. Kept for your reference. Digests still go to you, not to them."
+        error={emailError}
+        errorId="person-email-error"
+      >
+        <Input
+          id="person-email"
+          name="email"
+          type="text"
+          inputMode="email"
+          autoComplete="email"
+          defaultValue={defaults?.email}
+          placeholder="maya@example.com"
+          aria-invalid={emailError ? true : undefined}
+          aria-describedby={emailError ? "person-email-error" : undefined}
+        />
       </Field>
       <Field label="Likes" hint="Comma-separated. These become the gift search.">
         <Textarea name="likes" defaultValue={defaults?.likes} />
@@ -220,24 +238,37 @@ export function UpcomingCheck() {
 export function CompleteForm({
   personId,
   occasionId,
+  occurrenceOn,
   deals,
   today,
+  initialState = null,
 }: {
   personId: string;
   occasionId: string;
+  occurrenceOn: string;
   deals: DealView[];
   today: string;
+  initialState?: ActionState;
 }) {
   const action = completeOccasionAction.bind(null, occasionId, personId);
-  const [state, formAction] = useActionState(action, null);
+  const [state, formAction] = useActionState(action, initialState);
   const [mode, setMode] = useState<"deal" | "hand" | "none">(deals.length ? "deal" : "hand");
   const [link, setLink] = useState(deals[0]?.link ?? "");
   const selected = useMemo(() => deals.find((deal) => deal.link === link) ?? null, [deals, link]);
   const prefill = mode === "deal" && selected ? selected : null;
 
+  if (state?.notice) {
+    return (
+      <p role="status" className="mt-3 text-sm text-forest">
+        {state.notice}
+      </p>
+    );
+  }
+
   return (
     <form action={formAction} className="mt-3 grid gap-3 border-t border-line pt-3">
       <Banner state={state} />
+      <input type="hidden" name="occurrenceOn" value={occurrenceOn} />
       <div className="flex flex-wrap gap-2 text-sm">
         {deals.length > 0 ? (
           <label className="flex items-center gap-2">

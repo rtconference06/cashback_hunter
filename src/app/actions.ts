@@ -16,9 +16,10 @@ import {
 } from "@/lib/people";
 import { NO_MATCHES_WITHIN_BUDGET } from "@/lib/deals";
 import { runSearch } from "@/lib/search-service";
+import { validationToActionState, type ActionState } from "@/lib/action-state";
 import { ValidationError, type PersonInput } from "@/lib/validation";
 
-export type ActionState = { error?: string; notice?: string } | null;
+export type { ActionState };
 
 function readPerson(formData: FormData): PersonInput {
   return {
@@ -54,6 +55,7 @@ function readPurchase(formData: FormData): PurchaseInput {
     imageUrl: String(formData.get("imageUrl") ?? ""),
     purchasedOn: String(formData.get("purchasedOn") ?? ""),
     note: String(formData.get("note") ?? ""),
+    occurrenceOn: String(formData.get("occurrenceOn") ?? ""),
   };
 }
 
@@ -64,7 +66,7 @@ export async function createPersonAction(_prev: ActionState, formData: FormData)
     revalidatePath("/people");
     redirect(`/people/${person.id}`);
   } catch (error) {
-    if (error instanceof ValidationError) return { error: error.message };
+    if (error instanceof ValidationError) return validationToActionState(error);
     throw error;
   }
 }
@@ -77,7 +79,7 @@ export async function updatePersonAction(id: string, _prev: ActionState, formDat
     revalidatePath("/");
     redirect(`/people/${id}`);
   } catch (error) {
-    if (error instanceof ValidationError) return { error: error.message };
+    if (error instanceof ValidationError) return validationToActionState(error);
     throw error;
   }
 }
@@ -108,7 +110,7 @@ export async function createOccasionAction(personId: string, _prev: ActionState,
     revalidatePath("/people");
     return { notice: "Occasion added." };
   } catch (error) {
-    if (error instanceof ValidationError) return { error: error.message };
+    if (error instanceof ValidationError) return validationToActionState(error);
     throw error;
   }
 }
@@ -126,7 +128,7 @@ export async function completeOccasionAction(
     revalidatePath("/people");
     return { notice: "Marked complete. The purchase is on the timeline." };
   } catch (error) {
-    if (error instanceof ValidationError) return { error: error.message };
+    if (error instanceof ValidationError) return validationToActionState(error);
     throw error;
   }
 }

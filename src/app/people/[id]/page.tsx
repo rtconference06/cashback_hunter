@@ -6,7 +6,10 @@ import { archivePersonAction, restorePersonAction } from "@/app/actions";
 import { DealList } from "@/components/deal-list";
 import { ProductImage } from "@/components/product-image";
 import { AdhocSearchForm, CompleteForm, GiftSearchForm, OccasionForm } from "@/components/forms";
+import { OccasionCompletionCard } from "@/components/occasion-completion";
 import { PageFallback } from "@/components/fallback";
+import { PersonListMeta } from "@/components/person-list-meta";
+import { PurchaseLink } from "@/components/purchase-link";
 import { Button } from "@/components/ui";
 import {
   daysRemainingLabel,
@@ -17,6 +20,7 @@ import {
 } from "@/lib/dates";
 import { dealsFromStored, maxDealsFromEnv } from "@/lib/deals";
 import { parseStoredList } from "@/lib/lists";
+import { offerCompletion, purchaseMatchesOccurrence } from "@/lib/completion";
 import { formatMoney } from "@/lib/money";
 import { getPerson, listPeople } from "@/lib/people";
 import { projectOccasion, sortUpcoming, type UpcomingRow } from "@/lib/upcoming";
@@ -91,13 +95,11 @@ async function PersonScreen({ params }: { params: Promise<{ id: string }> }) {
                   </span>
                   <span>
                     <span className="block text-sm font-bold text-[#252525]">{member.name}</span>
-                    <span className="block text-xs text-[#575757]">Budget {formatMoney(member.defaultBudgetCents)}</span>
-                    <span className="block text-xs text-[#575757]">
-                      {member.nextOccasion ? `${member.nextOccasion.title} · ${member.nextOccasion.label}` : "No open occasion"}
-                    </span>
-                    {member.hobbies.length ? (
-                      <span className="block text-xs text-[#575757]">hobbies {member.hobbies.join(", ")}</span>
-                    ) : null}
+                    <PersonListMeta
+                      budget={formatMoney(member.defaultBudgetCents)}
+                      nextOccasion={member.nextOccasion}
+                      hobbies={member.hobbies}
+                    />
                   </span>
                 </Link>
               </li>
@@ -295,11 +297,7 @@ async function PersonScreen({ params }: { params: Promise<{ id: string }> }) {
                     </p>
                   </div>
                 )}
-                {purchase.link ? (
-                  <a href={purchase.link} className="text-sm text-forest underline" target="_blank" rel="noreferrer">
-                    {purchase.link}
-                  </a>
-                ) : null}
+                <PurchaseLink link={purchase.link} className="text-sm text-forest underline" />
                 {purchase.note ? <p className="mt-1 text-sm text-muted">{purchase.note}</p> : null}
               </li>
             ))}
@@ -335,20 +333,28 @@ async function PersonScreen({ params }: { params: Promise<{ id: string }> }) {
                 { ...occasion, budgetCents: occasion.budgetCents },
                 today,
               );
+              const occurrenceOn = projected?.occurrence ? formatDateInput(projected.occurrence) : "undated";
+              const purchased = person.purchases.some((purchase) =>
+                purchaseMatchesOccurrence(purchase, occasion.id, occurrenceOn),
+              );
+              const offer = offerCompletion({
+                lastCompletedOn: occasion.lastCompletedOn,
+                days: projected?.days ?? null,
+                purchased,
+              });
+              const detail = `${occasionKindLabel(occasion.kind)}${projected ? ` · ${projected.label}` : ` · ${daysRemainingLabel(null, occasion.kind)}`}`;
               return (
-                <li key={occasion.id} className="rounded-3xl border border-line bg-card p-4 sm:p-5">
-                  <p className="font-serif text-2xl">{occasion.title}</p>
-                  <p className="text-sm text-muted">
-                    {occasionKindLabel(occasion.kind)}
-                    {projected ? ` · ${projected.label}` : ` · ${daysRemainingLabel(null, occasion.kind)}`}
-                  </p>
-                  <CompleteForm
-                    personId={person.id}
-                    occasionId={occasion.id}
-                    deals={latest?.occasionId === occasion.id ? deals : deals}
-                    today={formatDateInput(today)}
-                  />
-                </li>
+                <OccasionCompletionCard key={occasion.id} title={occasion.title} detail={detail} offer={offer}>
+                  {offer ? (
+                    <CompleteForm
+                      personId={person.id}
+                      occasionId={occasion.id}
+                      occurrenceOn={occurrenceOn}
+                      deals={latest?.occasionId === occasion.id ? deals : deals}
+                      today={formatDateInput(today)}
+                    />
+                  ) : null}
+                </OccasionCompletionCard>
               );
             })}
         </ul>

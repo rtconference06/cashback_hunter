@@ -21,3 +21,12 @@ export function parseStoredList(value: string): string[] {
 export function storeList(input: string): string {
   return JSON.stringify(parseList(input));
 }
+
+/** People-list rows show this many hobbies, then "+N" for the rest. */
+export const HOBBY_PREVIEW_LIMIT = 3;
+
+export function previewHobbies(hobbies: string[], limit = HOBBY_PREVIEW_LIMIT): { shown: string[]; extra: number } {
+  const clean = hobbies.map((hobby) => hobby.trim()).filter(Boolean);
+  if (clean.length <= limit) return { shown: clean, extra: 0 };
+  return { shown: clean.slice(0, limit), extra: clean.length - limit };
+}

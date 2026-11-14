@@ -1,6 +1,7 @@
 import { dismissDealAction, favoriteDealAction } from "@/app/actions";
 import { ProductImage } from "@/components/product-image";
 import { NO_MATCHES_WITHIN_BUDGET, type DealView } from "@/lib/deals";
+import { safeHttpHref } from "@/lib/links";
 import { formatMoney } from "@/lib/money";
 
 export function DealList({
@@ -37,8 +38,10 @@ export function DealList({
 
   return (
     <ol id="deals" className="grid grid-cols-2 gap-4 xl:grid-cols-5">
-      {deals.map((deal) => (
-        <li key={deal.link} className="flex flex-col rounded-xl border border-[#DDDDDD] bg-white p-3 shadow-sm">
+      {deals.map((deal) => {
+        const shopHref = safeHttpHref(deal.link);
+        return (
+          <li key={deal.link} className="flex flex-col rounded-xl border border-[#DDDDDD] bg-white p-3 shadow-sm">
           <div className="relative">
             <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-[#F6F6F6]">
               <ProductImage src={deal.imageUrl} alt={deal.title} />
@@ -73,16 +76,19 @@ export function DealList({
           <p className="text-sm font-semibold text-[#8529CD]">{formatCashBack(deal.cashbackPercent)}</p>
           <p className="text-sm text-[#575757]">Final price {formatMoney(deal.effectivePriceCents)}</p>
           <p className="mt-1 line-clamp-2 text-xs text-[#575757]">{deal.whyMatched}</p>
-          <a
-            href={deal.link}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-3 inline-flex h-9 items-center justify-center rounded-lg bg-[#8529CD] text-sm font-semibold text-white hover:bg-[#6f1fb0]"
-          >
-            {sample ? "Shop now" : "Shop now"}
-          </a>
-        </li>
-      ))}
+          {shopHref ? (
+            <a
+              href={shopHref}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex h-9 items-center justify-center rounded-lg bg-[#8529CD] text-sm font-semibold text-white hover:bg-[#6f1fb0]"
+            >
+              {sample ? "Shop now" : "Shop now"}
+            </a>
+          ) : null}
+          </li>
+        );
+      })}
     </ol>
   );
 }

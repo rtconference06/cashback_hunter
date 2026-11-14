@@ -78,6 +78,9 @@ model Purchase {
   occasionKind   String
   /// The occurrence date that was completed. Null for an undated ad-hoc need.
   occurrenceOn   DateTime?
+  /// ISO date of that occurrence, or "undated", on rows written after this column existed.
+  /// Null on older rows. SQLite unique indexes allow many nulls, so duplicates from before the guard still push.
+  occurrenceKey  String?
   noGift         Boolean   @default(false)
   title          String    @default("")
   priceCents     Int?
@@ -88,6 +91,8 @@ model Purchase {
   purchasedOn    DateTime
   note           String    @default("")
   createdAt      DateTime  @default(now())
+
+  @@unique([occasionId, occurrenceKey])
 }
 
 model SearchRun {

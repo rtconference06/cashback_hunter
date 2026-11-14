@@ -15,6 +15,16 @@ Copy `.env.example` to `.env` first if you do not already have one. The sample c
 
 Reset the sample data with `npm run db:reset`.
 
+## Upgrading an existing database
+
+If you already have a Gift Hunter database, `npm run dev` stops at plain `prisma db push`. Prisma treats the new uniqueness check on purchases as a possible data loss and will not apply it unless you accept that warning. Run this once:
+
+```bash
+npm run db:upgrade
+```
+
+That is `prisma db push --accept-data-loss`. It is safe for this change. Purchases saved before the occurrence key existed keep a NULL `occurrenceKey`, and no tables or rows are dropped. After it finishes, `npm run dev` works as usual.
+
 ## What you can do
 
 - Add and edit people: name, relationship, likes, dislikes, hobbies, a budget in US dollars, and an optional email. A missing name, a negative budget, or a non-numeric budget is rejected. A blank email is fine; a malformed one is not. The address is only for your reference. Digests still go to `DIGEST_TO` or `OWNER_EMAIL`, never to the person.
@@ -34,7 +44,7 @@ Gift searches use likes and hobbies (and a specific occasion name, such as a hol
 
 A deal is kept only when:
 
-- its effective price is within the budget (an occasion budget overrides the person's default when you set one)
+- AC-3: its price after cashback is at or under the budget. The price before cashback can sit above the budget. An occasion budget overrides the person's default when you set one.
 - no dislike phrase appears in the **title or category**
 - it actually matches a like, hobby, or the ad-hoc request
 
@@ -88,4 +98,4 @@ If SMTP or Resend is selected but the host or key is missing, the app logs the m
 npm test
 ```
 
-The acceptance tests live in `tests/acceptance.test.ts` and are named by id, AC-1 through AC-27. AC-25 is archive and restore. AC-26 is the store name. AC-27 is the optional per-person email: reference only (not used for sending), validated when present, empty allowed, trimmed. Removal is archive, not delete: AC-2 covers occasion types, and AC-25 covers what happens to those occasions when a person is archived.
+The acceptance tests live in `tests/acceptance.test.ts` and are named by id, AC-1 through AC-27. AC-3 is the budget rule above: a deal fits when its price after cashback is at or under the budget. F1 is the named check for that rule: Sam Ortiz has a $40 budget, and the $48 boots that cost $36 after cashback are included. AC-25 is archive and restore. AC-26 is the store name. AC-27 is the optional per-person email: reference only (not used for sending), validated when present, empty allowed, trimmed. Removal is archive, not delete: AC-2 covers occasion types, and AC-25 covers what happens to those occasions when a person is archived.
