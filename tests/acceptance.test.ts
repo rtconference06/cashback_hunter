@@ -72,7 +72,7 @@ describe("AC-1 person CRUD and validation", () => {
   });
 });
 
-describe("person email", () => {
+describe("AC-27 optional per-person email", () => {
   it("stores a valid email and still sends digests to the owner", async () => {
     const now = new Date("2026-06-01T15:00:00Z");
     const person = await createPerson({ ...validPerson, likes: "pen", email: "maya.chen@example.com", budget: "50" });
@@ -100,6 +100,11 @@ describe("person email", () => {
     const digest = await prisma.digest.findFirstOrThrow();
     expect(digest.to).toBe("owner@example.com");
     expect(digest.to).not.toBe("maya.chen@example.com");
+  });
+
+  it("trims a valid email", async () => {
+    const person = await createPerson({ ...validPerson, name: "Trimmed Email", email: "  maya.chen@example.com  " });
+    expect((await getPerson(person.id))?.email).toBe("maya.chen@example.com");
   });
 
   it("allows an empty email", async () => {
@@ -448,6 +453,7 @@ describe("AC-14 recording a purchase", () => {
         price: "30.60",
         store: "Uncommon Goods",
         link: "https://www.rakuten.com/#sample-ceramic-mug",
+        imageUrl: "/products/mug.svg",
         purchasedOn: "2026-11-01",
         note: "Picked from the suggested deals",
       },
@@ -469,6 +475,8 @@ describe("AC-14 recording a purchase", () => {
     expect(fromDeal.title).toBe("Handmade Ceramic Mug");
     expect(fromDeal.priceCents).toBe(3060);
     expect(fromDeal.store).toBe("Uncommon Goods");
+    expect(fromDeal.imageUrl).toBe("/products/mug.svg");
+    expect(byHand.imageUrl).toBe("");
     expect(byHand).toMatchObject({ title: "Navy wool coat", priceCents: 4200, store: "REI", link: "https://example.com/coat" });
   });
 });

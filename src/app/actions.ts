@@ -51,6 +51,7 @@ function readPurchase(formData: FormData): PurchaseInput {
     price: String(formData.get("price") ?? ""),
     store: String(formData.get("store") ?? ""),
     link: String(formData.get("link") ?? ""),
+    imageUrl: String(formData.get("imageUrl") ?? ""),
     purchasedOn: String(formData.get("purchasedOn") ?? ""),
     note: String(formData.get("note") ?? ""),
   };

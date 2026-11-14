@@ -1,6 +1,7 @@
 import { prisma, getOwner } from "@/lib/db";
 import { activeOccurrence, ownerToday, parseDateInput, recursYearly } from "@/lib/dates";
 import { displayStore } from "@/lib/deals";
+import { safeImageUrl } from "@/lib/product-image";
 import { parseStoredList } from "@/lib/lists";
 import { dollarsToCents } from "@/lib/money";
 import {
@@ -214,6 +215,7 @@ export type PurchaseInput = {
   price: string;
   store: string;
   link: string;
+  imageUrl?: string;
   purchasedOn: string;
   note: string;
 };
@@ -239,6 +241,7 @@ export async function completeOccasion(occasionId: string, input: PurchaseInput,
   let priceCents: number | null = null;
   let store = "";
   let link = "";
+  let imageUrl = "";
   if (!input.noGift) {
     title = input.title.trim();
     if (!title) throw new ValidationError("Name what you bought, or mark it as no gift.");
@@ -250,6 +253,7 @@ export async function completeOccasion(occasionId: string, input: PurchaseInput,
     if (priceCents < 0) throw new ValidationError("Price paid cannot be negative.");
     store = displayStore(input.store);
     link = input.link.trim();
+    imageUrl = safeImageUrl(input.imageUrl);
   }
 
   const purchasedOn = input.purchasedOn.trim() ? parseDateInput(input.purchasedOn) : today;
@@ -267,6 +271,7 @@ export async function completeOccasion(occasionId: string, input: PurchaseInput,
       priceCents,
       store,
       link,
+      imageUrl,
       purchasedOn,
       note: input.note.trim(),
     },

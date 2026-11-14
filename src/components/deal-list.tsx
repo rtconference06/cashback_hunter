@@ -1,5 +1,5 @@
-import Image from "next/image";
 import { dismissDealAction, favoriteDealAction } from "@/app/actions";
+import { ProductImage } from "@/components/product-image";
 import { NO_MATCHES_WITHIN_BUDGET, type DealView } from "@/lib/deals";
 import { formatMoney } from "@/lib/money";
 
@@ -40,12 +40,8 @@ export function DealList({
       {deals.map((deal) => (
         <li key={deal.link} className="flex flex-col rounded-xl border border-[#DDDDDD] bg-white p-3 shadow-sm">
           <div className="relative">
-            <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg bg-[#F6F6F6]">
-              {deal.imageUrl ? (
-                <Image src={deal.imageUrl} alt="" width={160} height={120} unoptimized className="h-full w-full object-contain p-3" />
-              ) : (
-                <span className="text-3xl font-bold text-[#8529CD]">{deal.title.slice(0, 1)}</span>
-              )}
+            <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-[#F6F6F6]">
+              <ProductImage src={deal.imageUrl} alt={deal.title} />
             </div>
             <span className="absolute left-2 top-2 rounded-md bg-[#8529CD] px-1.5 py-0.5 text-[11px] font-bold text-white">
               {Math.round(deal.cashbackPercent)}%

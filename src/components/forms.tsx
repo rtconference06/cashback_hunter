@@ -255,6 +255,7 @@ export function CompleteForm({
         </label>
       </div>
       <input type="hidden" name="noGift" value={mode === "none" ? "yes" : ""} />
+      <input type="hidden" name="imageUrl" value={prefill?.imageUrl ?? ""} />
       {mode === "deal" && deals.length > 0 ? (
         <label className="grid gap-1 text-sm">
           Suggested deal

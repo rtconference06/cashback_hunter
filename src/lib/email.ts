@@ -1,5 +1,6 @@
 import { displayStore, UNKNOWN_STORE } from "@/lib/deals";
 import { formatMoney, formatPercent } from "@/lib/money";
+import { digestProductImageHtml } from "@/lib/product-image";
 
 export type DigestDeal = {
   title: string;
@@ -9,6 +10,7 @@ export type DigestDeal = {
   effectivePriceCents: number;
   link: string;
   whyMatched: string;
+  imageUrl?: string;
 };
 
 export type OutboundEmail = {
@@ -72,7 +74,7 @@ export function renderDigest(input: {
   const items = input.deals
     .map((deal) => {
       const store = displayStore(deal.store);
-      return `<li><strong>${escapeHtml(deal.title)}</strong><br/>Store: ${escapeHtml(store)}<br/>Price ${escapeHtml(formatMoney(deal.priceCents))} · Cashback ${escapeHtml(formatPercent(deal.cashbackPercent))} · You pay ${escapeHtml(formatMoney(deal.effectivePriceCents))}<br/><a href="${escapeHtml(deal.link)}">${escapeHtml(deal.link)}</a><br/>${escapeHtml(deal.whyMatched)}</li>`;
+      return `<li>${digestProductImageHtml(deal.title, deal.imageUrl)}<br/><strong>${escapeHtml(deal.title)}</strong><br/>Store: ${escapeHtml(store)}<br/>Price ${escapeHtml(formatMoney(deal.priceCents))} · Cashback ${escapeHtml(formatPercent(deal.cashbackPercent))} · You pay ${escapeHtml(formatMoney(deal.effectivePriceCents))}<br/><a href="${escapeHtml(deal.link)}">${escapeHtml(deal.link)}</a><br/>${escapeHtml(deal.whyMatched)}</li>`;
     })
     .join("");
   const html = `<p>${escapeHtml(input.occasionTitle)} for ${escapeHtml(input.personName)} is ${escapeHtml(input.whenLabel)}. Budget ${escapeHtml(formatMoney(input.budgetCents))} after cashback.</p><ol>${items}</ol>`;

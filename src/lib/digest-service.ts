@@ -85,6 +85,7 @@ export async function sendOccasionDigest(input: {
     effectivePriceCents: deal.effectivePriceCents,
     link: deal.link,
     whyMatched: deal.whyMatched,
+    imageUrl: deal.imageUrl,
   }));
   const rendered = renderDigest({
     personName: occasion.person.name,

@@ -1,6 +1,7 @@
 import { addUtcDays, formatDateInput, ownerToday } from "../src/lib/dates";
 import { prisma } from "../src/lib/db";
 import { completeOccasion, createOccasion, createPerson } from "../src/lib/people";
+import { MOCK_CATALOG } from "../src/lib/providers/mock-catalog";
 import { runSearch } from "../src/lib/search-service";
 import { runUpcomingDigests } from "../src/lib/digest-service";
 
@@ -66,6 +67,7 @@ async function main() {
     price: "30.60",
     store: "Uncommon Goods",
     link: "https://www.rakuten.com/#sample-ceramic-mug",
+    imageUrl: MOCK_CATALOG.find((item) => item.id === "ceramic-mug")?.imageUrl ?? "",
     purchasedOn: iso(-38),
     note: "Picked from the suggested deals. She uses it every morning.",
   });
