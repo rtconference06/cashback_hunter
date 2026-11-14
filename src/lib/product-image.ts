@@ -29,10 +29,27 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
+/**
+ * Email clients only load an absolute URL. A site path such as /products/mug.svg
+ * has no host in the message, so it is a placeholder instead of a broken image.
+ * https is required; http is accepted when a feed still serves it.
+ */
+export function digestImageUrl(value: string | null | undefined): string {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return "";
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol === "https:" || url.protocol === "http:") return trimmed;
+  } catch {
+    return "";
+  }
+  return "";
+}
+
 /** Email HTML cannot recover from a broken src, so a missing URL is a styled placeholder. */
 export function digestProductImageHtml(title: string, imageUrl: string | null | undefined): string {
   const name = title.trim() || "Product";
-  const safe = safeImageUrl(imageUrl);
+  const safe = digestImageUrl(imageUrl);
   if (!safe) {
     const initial = escapeHtml((name.slice(0, 1) || "G").toUpperCase());
     return `<div data-product-image="placeholder" role="img" aria-label="${escapeHtml(name)}" title="${escapeHtml(name)}" style="width:120px;height:90px;background:#F6EEFB;border-radius:8px;color:#8529CD;font:700 28px Arial,sans-serif;line-height:90px;text-align:center;">${initial}</div>`;

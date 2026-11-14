@@ -73,6 +73,22 @@ describe("digest product image", () => {
     expect(rendered.html).not.toMatch(/<img[^>]*src="\s*"/);
     expect(digestProductImageHtml("Wool socks", "")).toContain('data-product-image="placeholder"');
   });
+
+  it("uses the placeholder for a site-relative path and embeds an https photo", () => {
+    const local = digestProductImageHtml("Handmade Ceramic Mug", "/products/mug.svg");
+    expect(local).toContain('data-product-image="placeholder"');
+    expect(local).toContain('aria-label="Handmade Ceramic Mug"');
+    expect(local).not.toContain("<img");
+    expect(local).not.toContain("/products/mug.svg");
+
+    const remote = digestProductImageHtml("Handmade Ceramic Mug", "https://cdn.example.com/mug.jpg");
+    expect(remote).toContain('data-product-image="photo"');
+    expect(remote).toContain('src="https://cdn.example.com/mug.jpg"');
+    expect(remote).toContain('alt="Handmade Ceramic Mug"');
+
+    const httpPhoto = digestProductImageHtml("Wool socks", "http://cdn.example.com/socks.jpg");
+    expect(httpPhoto).toContain('src="http://cdn.example.com/socks.jpg"');
+  });
 });
 
 describe("provider and sample image urls", () => {
