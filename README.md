@@ -88,4 +88,4 @@ If SMTP or Resend is selected but the host or key is missing, the app logs the m
 npm test
 ```
 
-The acceptance tests live in `tests/acceptance.test.ts` and are named by id, AC-1 through AC-26. AC-25 is archive and restore. AC-26 is the store name. Removal is archive, not delete: AC-2 covers occasion types, and AC-25 covers what happens to those occasions when a person is archived.
+The acceptance tests live in `tests/acceptance.test.ts` and are named by id, AC-1 through AC-27. AC-25 is archive and restore. AC-26 is the store name. AC-27 is the optional per-person email: reference only (not used for sending), validated when present, empty allowed, trimmed. Removal is archive, not delete: AC-2 covers occasion types, and AC-25 covers what happens to those occasions when a person is archived.

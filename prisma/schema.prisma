@@ -83,6 +83,8 @@ model Purchase {
   priceCents     Int?
   store          String    @default("")
   link           String    @default("")
+  /// Product photo from the provider, when the purchase came from a deal.
+  imageUrl       String    @default("")
   purchasedOn    DateTime
   note           String    @default("")
   createdAt      DateTime  @default(now())

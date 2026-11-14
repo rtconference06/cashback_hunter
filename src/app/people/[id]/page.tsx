@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import { archivePersonAction, restorePersonAction } from "@/app/actions";
 import { DealList } from "@/components/deal-list";
+import { ProductImage } from "@/components/product-image";
 import { AdhocSearchForm, CompleteForm, GiftSearchForm, OccasionForm } from "@/components/forms";
 import { PageFallback } from "@/components/fallback";
 import { Button } from "@/components/ui";
@@ -283,11 +284,16 @@ async function PersonScreen({ params }: { params: Promise<{ id: string }> }) {
                 {purchase.noGift ? (
                   <p className="mt-1 text-sm">No gift</p>
                 ) : (
-                  <p className="mt-1 text-sm">
-                    {purchase.title}
-                    {purchase.priceCents != null ? ` · ${formatMoney(purchase.priceCents)}` : ""}
-                    {` · Store: ${purchase.store || "Unknown store"}`}
-                  </p>
+                  <div className="mt-2 flex items-center gap-3">
+                    <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-[#F6F6F6]">
+                      <ProductImage src={purchase.imageUrl} alt={purchase.title || "Purchase"} />
+                    </div>
+                    <p className="text-sm">
+                      {purchase.title}
+                      {purchase.priceCents != null ? ` · ${formatMoney(purchase.priceCents)}` : ""}
+                      {` · Store: ${purchase.store || "Unknown store"}`}
+                    </p>
+                  </div>
                 )}
                 {purchase.link ? (
                   <a href={purchase.link} className="text-sm text-forest underline" target="_blank" rel="noreferrer">

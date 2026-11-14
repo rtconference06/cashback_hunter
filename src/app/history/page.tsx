@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { PageFallback } from "@/components/fallback";
+import { ProductImage } from "@/components/product-image";
 import { formatDayWithYear } from "@/lib/dates";
 import { prisma, getOwner } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
@@ -47,11 +48,16 @@ async function History() {
               {purchase.noGift ? (
                 <p className="mt-1 text-sm">No gift</p>
               ) : (
-                <p className="mt-1 text-sm">
-                  {purchase.title}
-                  {purchase.priceCents != null ? ` · ${formatMoney(purchase.priceCents)}` : ""}
-                  {` · ${purchase.store || "Unknown store"}`}
-                </p>
+                <div className="mt-2 flex items-center gap-3">
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-[#F6F6F6]">
+                    <ProductImage src={purchase.imageUrl} alt={purchase.title || "Purchase"} />
+                  </div>
+                  <p className="text-sm">
+                    {purchase.title}
+                    {purchase.priceCents != null ? ` · ${formatMoney(purchase.priceCents)}` : ""}
+                    {` · ${purchase.store || "Unknown store"}`}
+                  </p>
+                </div>
               )}
               {purchase.note ? <p className="mt-1 text-sm text-[#575757]">{purchase.note}</p> : null}
             </li>
