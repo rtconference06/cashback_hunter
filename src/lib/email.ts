@@ -51,7 +51,7 @@ export function renderDigest(input: {
   budgetCents: number;
   deals: DigestDeal[];
 }): { subject: string; text: string; html: string } {
-  const subject = `Cashback Hunter: ${input.personName} — ${input.occasionTitle} (${input.whenLabel})`;
+  const subject = `Gift Hunter: ${input.personName} — ${input.occasionTitle} (${input.whenLabel})`;
   const lines = [
     `${input.occasionTitle} for ${input.personName} is ${input.whenLabel}.`,
     `Budget ${formatMoney(input.budgetCents)} after cashback.`,
@@ -81,7 +81,7 @@ export function renderDigest(input: {
 
 export function formatLoggedEmail(email: OutboundEmail): string {
   return [
-    "[cashback-hunter] email logged (no email provider configured)",
+    "[gift-hunter] email logged (no email provider configured)",
     `To: ${email.to}`,
     `Subject: ${email.subject}`,
     "",
@@ -133,7 +133,7 @@ async function sendResend(email: OutboundEmail, env: EmailEnv) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: env.EMAIL_FROM?.trim() || "Cashback Hunter <hunter@localhost>",
+      from: env.EMAIL_FROM?.trim() || "Gift Hunter <hunter@localhost>",
       to: [email.to],
       subject: email.subject,
       html: email.html,

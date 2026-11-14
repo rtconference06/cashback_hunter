@@ -10,7 +10,7 @@ export function startScheduler() {
   const tick = () => {
     runUpcomingDigests().catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "unknown error";
-      console.error(`[cashback-hunter] scheduled digest failed: ${message}`);
+      console.error(`[gift-hunter] scheduled digest failed: ${message}`);
     });
   };
   setTimeout(tick, 20_000).unref?.();

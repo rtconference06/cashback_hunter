@@ -10,7 +10,7 @@ export async function sendSmtp(email: OutboundEmail, env: EmailEnv) {
     auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined,
   });
   await transport.sendMail({
-    from: env.EMAIL_FROM?.trim() || "Cashback Hunter <hunter@localhost>",
+    from: env.EMAIL_FROM?.trim() || "Gift Hunter <hunter@localhost>",
     to: email.to,
     subject: email.subject,
     text: email.text,

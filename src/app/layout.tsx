@@ -12,8 +12,8 @@ const outfit = Outfit({
 
 export const metadata: Metadata = {
   title: {
-    default: "Cashback Hunter",
-    template: "%s · Cashback Hunter",
+    default: "Gift Hunter",
+    template: "%s · Gift Hunter",
   },
   description: "A personal shopping desk that ranks Rakuten deals for the people you buy for.",
   robots: { index: false, follow: false },

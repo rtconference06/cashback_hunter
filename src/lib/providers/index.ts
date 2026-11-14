@@ -5,7 +5,7 @@ import type { DealProvider, ProviderEnv } from "@/lib/providers/types";
 export type { DealProvider, ProviderEnv };
 
 export const MOCK_FALLBACK_LOG =
-  "[cashback-hunter] Rakuten credentials are not set. Falling back to the mock deal provider.";
+  "[gift-hunter] Rakuten credentials are not set. Falling back to the mock deal provider.";
 
 export function selectDealProvider(
   env: ProviderEnv = process.env,

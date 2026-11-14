@@ -350,7 +350,7 @@ describe("AC-10 logged email", () => {
     await runUpcomingDigests({ now, leadDays: 14, provider: penProvider() });
     const logged = spy.mock.calls.map((call) => String(call[0])).join("\n");
     expect(logged).toContain("To: owner@example.com");
-    expect(logged).toContain("Subject: Cashback Hunter: Maya Chen — Birthday");
+    expect(logged).toContain("Subject: Gift Hunter: Maya Chen — Birthday");
     expect(logged).toContain("Brass pen");
     expect(logged).toContain("Store: JetPens");
     const saved = await prisma.digest.findFirstOrThrow();
