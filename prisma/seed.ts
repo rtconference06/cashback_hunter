@@ -199,7 +199,7 @@ async function main() {
   await prisma.person.update({ where: { id: robin.id }, data: { archivedAt: new Date() } });
 
   await runUpcomingDigests();
-  console.log("Seeded Cashback Hunter with sample people, deals, history, and a logged digest.");
+  console.log("Seeded Gift Hunter with sample people, deals, history, and a logged digest.");
 }
 
 main()

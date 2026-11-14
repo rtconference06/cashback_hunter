@@ -22,7 +22,7 @@ export function SiteHeader() {
         <div className="flex flex-wrap items-center gap-8">
           <Link href="/people" className="flex items-center gap-2 text-[#8529CD]">
             <BagIcon />
-            <span className="text-xl font-bold tracking-tight">Cashback Hunter</span>
+            <span className="text-xl font-bold tracking-tight">Gift Hunter</span>
           </Link>
           <nav className="flex flex-wrap items-center gap-6">
             {links.map((link) => {

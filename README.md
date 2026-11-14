@@ -1,4 +1,4 @@
-# Cashback Hunter
+# Gift Hunter
 
 A single-user shopping desk for the people you buy for. It keeps their likes, dislikes, hobbies, and budget, watches occasions, and ranks Rakuten deals by what you actually pay after cashback.
 
