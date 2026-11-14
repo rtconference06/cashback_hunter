@@ -21,6 +21,8 @@ import {
 } from "@/lib/deals";
 import { runUpcomingDigests } from "@/lib/digest-service";
 import { formatLoggedEmail, renderDigest } from "@/lib/email";
+import { createPersonAction, updatePersonAction } from "@/app/actions";
+import { offerCompletion } from "@/lib/completion";
 import {
   archivePerson,
   completeOccasion,
@@ -121,6 +123,29 @@ describe("AC-27 optional per-person email", () => {
     await expect(createPerson({ ...validPerson, email: "maya chen@example.com" })).rejects.toThrow(/valid email/i);
     expect(await prisma.person.count()).toBe(0);
   });
+
+  it("allows clearing the email", async () => {
+    const person = await createPerson({ ...validPerson, email: "maya.chen@example.com" });
+    const cleared = await updatePerson(person.id, { ...validPerson, email: "" });
+    expect(cleared.email).toBe("");
+    const blanked = await updatePerson(person.id, { ...validPerson, email: "maya.chen@example.com" });
+    expect(blanked.email).toBe("maya.chen@example.com");
+    const spaces = await updatePerson(person.id, { ...validPerson, email: "   " });
+    expect(spaces.email).toBe("");
+  });
+
+  it("reports a bad email on the email field and does not save it", async () => {
+    const person = await createPerson({ ...validPerson, email: "maya.chen@example.com" });
+    const updated = await updatePersonAction(person.id, null, personForm({ email: "maya" }));
+    expect(updated?.fieldErrors?.email).toMatch(/valid email/i);
+    expect(updated?.error).toBeUndefined();
+    expect((await getPerson(person.id))?.email).toBe("maya.chen@example.com");
+
+    const created = await createPersonAction(null, personForm({ name: "Someone Else", email: "not-an-email" }));
+    expect(created?.fieldErrors?.email).toMatch(/valid email/i);
+    expect(created?.error).toBeUndefined();
+    expect(await prisma.person.count()).toBe(1);
+  });
 });
 
 describe("AC-2 occasion types", () => {
@@ -165,6 +190,51 @@ describe("AC-2 occasion types", () => {
     });
     expect(datedNeed.date?.toISOString().slice(0, 10)).toBe("2026-12-01");
     expect(datedNeed.budgetCents).toBe(2500);
+  });
+});
+
+/** QA fixture F1. Sam Ortiz, $40 budget. $48 boots cost $36 after 25% cashback, so they fit. */
+const F1 = {
+  name: "Sam Ortiz",
+  budget: "40",
+  budgetCents: 4000,
+  title: "Kids Waterproof Winter Boots",
+  priceCents: 4800,
+  cashbackPercent: 25,
+  priceAfterCashbackCents: 3600,
+} as const;
+
+describe("F1", () => {
+  it("includes Sam Ortiz's $48 boots because $36 after cashback is at or under the $40 budget", async () => {
+    const person = await createPerson({
+      ...validPerson,
+      name: F1.name,
+      relationship: "Nephew",
+      likes: "dinosaurs, drawing, space",
+      dislikes: "candy, noisy toys",
+      hobbies: "drawing",
+      budget: F1.budget,
+      notes: "School shoes are a size 1.",
+    });
+    const boots = await createOccasion(person.id, {
+      kind: "adhoc",
+      title: "Winter boots",
+      date: "",
+      recurring: false,
+      budget: "",
+      notes: "Something he can wear to school.",
+    });
+    const result = await runSearch({ personId: person.id, occasionId: boots.id });
+    const deal = result.deals.find((item) => item.title === F1.title);
+    expect(result.budgetCents).toBe(F1.budgetCents);
+    expect(deal).toMatchObject({
+      title: F1.title,
+      priceCents: F1.priceCents,
+      cashbackPercent: F1.cashbackPercent,
+      effectivePriceCents: F1.priceAfterCashbackCents,
+    });
+    expect(deal!.effectivePriceCents).toBeLessThanOrEqual(F1.budgetCents);
+    expect(result.deals.map((item) => item.title)).toContain(F1.title);
   });
 });
 
@@ -741,6 +811,188 @@ describe("AC-26 store name", () => {
     expect(logged).toContain("Store: Unknown store");
   });
 });
+
+describe("recurring completion is idempotent per occurrence", () => {
+  it("advances once and stores one purchase when the same occurrence is completed twice", async () => {
+    const now = new Date("2026-07-01T12:00:00Z");
+    const person = await createPerson(validPerson);
+    const birthday = await createOccasion(person.id, {
+      kind: "birthday",
+      title: "Birthday",
+      date: "2026-06-01",
+      recurring: true,
+      budget: "",
+      notes: "",
+    });
+    const first = await completeOccasion(birthday.id, gift("Pen", "20", "2026-06-01"), now);
+    const second = await completeOccasion(birthday.id, gift("Pen", "20", "2026-06-01"), now);
+    expect(second.id).toBe(first.id);
+    expect(await prisma.purchase.count({ where: { occasionId: birthday.id } })).toBe(1);
+    const stored = await prisma.occasion.findUniqueOrThrow({ where: { id: birthday.id } });
+    expect(stored.status).toBe("open");
+    expect(stored.lastCompletedOn?.toISOString().slice(0, 10)).toBe("2026-06-01");
+    const row = (await listUpcoming(now)).find((item) => item.occasionId === birthday.id);
+    expect(row?.occurrence?.toISOString().slice(0, 10)).toBe("2027-06-01");
+    expect(offerCompletion({ lastCompletedOn: stored.lastCompletedOn, days: row?.days ?? null, purchased: false })).toBe(false);
+  });
+
+  it("keeps a resubmit of the completed date and of the rolled-forward date from writing a second purchase", async () => {
+    const now = new Date("2026-11-14T12:00:00Z");
+    const person = await createPerson(validPerson);
+    const birthday = await createOccasion(person.id, {
+      kind: "birthday",
+      title: "Birthday",
+      date: "2026-12-02",
+      recurring: true,
+      budget: "",
+      notes: "",
+    });
+    const purchase = gift("Mug", "30", "2026-11-14");
+    const first = await completeOccasion(birthday.id, { ...purchase, occurrenceOn: "2026-12-02" }, now);
+    const sameOccurrence = await completeOccasion(birthday.id, { ...purchase, occurrenceOn: "2026-12-02" }, now);
+    const nextYear = await completeOccasion(birthday.id, { ...purchase, occurrenceOn: "2027-12-02" }, now);
+    expect(sameOccurrence.id).toBe(first.id);
+    expect(nextYear.id).toBe(first.id);
+    expect(await prisma.purchase.count({ where: { occasionId: birthday.id } })).toBe(1);
+    const stored = await prisma.occasion.findUniqueOrThrow({ where: { id: birthday.id } });
+    expect(stored.lastCompletedOn?.toISOString().slice(0, 10)).toBe("2026-12-02");
+  });
+
+  it("refuses a second database row for the same occurrence", async () => {
+    const now = new Date("2026-07-01T12:00:00Z");
+    const person = await createPerson(validPerson);
+    const birthday = await createOccasion(person.id, {
+      kind: "birthday",
+      title: "Birthday",
+      date: "2026-06-01",
+      recurring: true,
+      budget: "",
+      notes: "",
+    });
+    const first = await completeOccasion(birthday.id, gift("Pen", "20", "2026-06-01"), now);
+    await expect(
+      prisma.purchase.create({
+        data: {
+          personId: first.personId,
+          occasionId: first.occasionId,
+          occasionTitle: first.occasionTitle,
+          occasionKind: first.occasionKind,
+          occurrenceOn: first.occurrenceOn,
+          occurrenceKey: first.occurrenceKey,
+          purchasedOn: first.purchasedOn,
+          title: "Second pen",
+          priceCents: 100,
+          store: "REI",
+          link: "https://example.com/second",
+        },
+      }),
+    ).rejects.toThrow(/unique/i);
+    expect(await prisma.purchase.count({ where: { occasionId: birthday.id } })).toBe(1);
+  });
+
+  it("still completes the next overdue year after the missed one is saved", async () => {
+    const now = new Date("2026-11-14T12:00:00Z");
+    const person = await createPerson(validPerson);
+    const birthday = await createOccasion(person.id, {
+      kind: "birthday",
+      title: "Birthday",
+      date: "1990-06-01",
+      recurring: true,
+      budget: "",
+      notes: "",
+    });
+    await prisma.occasion.update({
+      where: { id: birthday.id },
+      data: { lastCompletedOn: new Date("2024-06-01T00:00:00.000Z") },
+    });
+    const missed = await completeOccasion(birthday.id, { ...gift("Pen", "20", "2025-06-01"), occurrenceOn: "2025-06-01" }, now);
+    const repeat = await completeOccasion(birthday.id, { ...gift("Pen", "20", "2025-06-01"), occurrenceOn: "2025-06-01" }, now);
+    expect(repeat.id).toBe(missed.id);
+    expect(await prisma.purchase.count({ where: { occasionId: birthday.id } })).toBe(1);
+    const caughtUp = await completeOccasion(birthday.id, { ...gift("Book", "18", "2026-06-01"), occurrenceOn: "2026-06-01" }, now);
+    expect(caughtUp.id).not.toBe(missed.id);
+    expect(await prisma.purchase.count({ where: { occasionId: birthday.id } })).toBe(2);
+    const stored = await prisma.occasion.findUniqueOrThrow({ where: { id: birthday.id } });
+    expect(stored.lastCompletedOn?.toISOString().slice(0, 10)).toBe("2026-06-01");
+  });
+});
+
+describe("purchase link validation", () => {
+  it("accepts an absolute http or https url and a blank link", async () => {
+    const now = new Date("2026-11-14T12:00:00Z");
+    const person = await createPerson(validPerson);
+    const holiday = await createOccasion(person.id, {
+      kind: "holiday",
+      title: "Hanukkah",
+      date: "2026-12-15",
+      recurring: true,
+      budget: "",
+      notes: "",
+    });
+    const saved = await completeOccasion(
+      holiday.id,
+      { ...gift("Pen", "10", "2026-11-01"), link: "  https://example.com/pen  " },
+      now,
+    );
+    expect(saved.link).toBe("https://example.com/pen");
+    const other = await createOccasion(person.id, {
+      kind: "holiday",
+      title: "New Year",
+      date: "2026-01-01",
+      recurring: true,
+      budget: "",
+      notes: "",
+    });
+    const blank = await completeOccasion(other.id, { ...gift("Card", "4", "2026-01-01"), link: "   " }, now);
+    expect(blank.link).toBe("");
+    const http = await createOccasion(person.id, {
+      kind: "custom",
+      title: "Party",
+      date: "2026-03-01",
+      recurring: false,
+      budget: "",
+      notes: "",
+    });
+    const plain = await completeOccasion(http.id, { ...gift("Cups", "8", "2026-03-01"), link: "http://shop.example.com/cups" }, now);
+    expect(plain.link).toBe("http://shop.example.com/cups");
+  });
+
+  it("rejects a non-url, a javascript url, and a scheme with no host", async () => {
+    const now = new Date("2026-11-14T12:00:00Z");
+    const person = await createPerson(validPerson);
+    const holiday = await createOccasion(person.id, {
+      kind: "holiday",
+      title: "Hanukkah",
+      date: "2026-12-15",
+      recurring: true,
+      budget: "",
+      notes: "",
+    });
+    for (const link of ["notaurl", "javascript:alert(1)", "http://"]) {
+      await expect(completeOccasion(holiday.id, { ...gift("Pen", "10", "2026-11-01"), link }, now)).rejects.toThrow(/http or https/i);
+    }
+    expect(await prisma.purchase.count({ where: { occasionId: holiday.id } })).toBe(0);
+    const stored = await prisma.occasion.findUniqueOrThrow({ where: { id: holiday.id } });
+    expect(stored.lastCompletedOn).toBeNull();
+  });
+});
+
+function personForm(overrides: Record<string, string> = {}) {
+  const values: Record<string, string> = {
+    name: validPerson.name,
+    relationship: validPerson.relationship,
+    email: "maya.chen@example.com",
+    likes: validPerson.likes,
+    dislikes: validPerson.dislikes,
+    hobbies: validPerson.hobbies,
+    budget: validPerson.budget,
+    notes: validPerson.notes,
+    ...overrides,
+  };
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(values)) formData.set(key, value);
+  return formData;
+}
 
 function penProvider() {
   return {

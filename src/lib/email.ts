@@ -1,4 +1,5 @@
 import { displayStore, UNKNOWN_STORE } from "@/lib/deals";
+import { safeHttpHref } from "@/lib/links";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { digestProductImageHtml } from "@/lib/product-image";
 
@@ -74,7 +75,9 @@ export function renderDigest(input: {
   const items = input.deals
     .map((deal) => {
       const store = displayStore(deal.store);
-      return `<li>${digestProductImageHtml(deal.title, deal.imageUrl)}<br/><strong>${escapeHtml(deal.title)}</strong><br/>Store: ${escapeHtml(store)}<br/>Price ${escapeHtml(formatMoney(deal.priceCents))} · Cashback ${escapeHtml(formatPercent(deal.cashbackPercent))} · You pay ${escapeHtml(formatMoney(deal.effectivePriceCents))}<br/><a href="${escapeHtml(deal.link)}">${escapeHtml(deal.link)}</a><br/>${escapeHtml(deal.whyMatched)}</li>`;
+      const href = safeHttpHref(deal.link);
+      const linkHtml = href ? `<a href="${escapeHtml(href)}">${escapeHtml(href)}</a><br/>` : "";
+      return `<li>${digestProductImageHtml(deal.title, deal.imageUrl)}<br/><strong>${escapeHtml(deal.title)}</strong><br/>Store: ${escapeHtml(store)}<br/>Price ${escapeHtml(formatMoney(deal.priceCents))} · Cashback ${escapeHtml(formatPercent(deal.cashbackPercent))} · You pay ${escapeHtml(formatMoney(deal.effectivePriceCents))}<br/>${linkHtml}${escapeHtml(deal.whyMatched)}</li>`;
     })
     .join("");
   const html = `<p>${escapeHtml(input.occasionTitle)} for ${escapeHtml(input.personName)} is ${escapeHtml(input.whenLabel)}. Budget ${escapeHtml(formatMoney(input.budgetCents))} after cashback.</p><ol>${items}</ol>`;

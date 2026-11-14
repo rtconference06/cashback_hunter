@@ -61,11 +61,28 @@ export function Label({ className, ...props }: ComponentProps<"label">) {
   return <label className={cn("text-sm font-medium text-ink", className)} {...props} />;
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+export function Field({
+  label,
+  hint,
+  error,
+  errorId,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  error?: string;
+  errorId?: string;
+  children: ReactNode;
+}) {
   return (
     <label className="grid gap-1.5">
       <span className="text-sm font-medium text-ink">{label}</span>
       {children}
+      {error ? (
+        <span id={errorId} role="alert" className="text-sm font-medium text-ink">
+          {error}
+        </span>
+      ) : null}
       {hint ? <span className="text-xs text-muted">{hint}</span> : null}
     </label>
   );

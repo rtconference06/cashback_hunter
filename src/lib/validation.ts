@@ -1,9 +1,13 @@
+import { parseHttpUrl } from "@/lib/links";
 import { parseList } from "@/lib/lists";
 
 export class ValidationError extends Error {
-  constructor(message: string) {
+  readonly field?: "email";
+
+  constructor(message: string, field?: "email") {
     super(message);
     this.name = "ValidationError";
+    this.field = field;
   }
 }
 
@@ -64,7 +68,7 @@ export function parseEmail(input: string | undefined): string {
   const email = (input ?? "").trim();
   if (!email) return "";
   if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)) {
-    throw new ValidationError("Enter a valid email address, or leave it blank.");
+    throw new ValidationError("Enter a valid email address, or leave it blank.", "email");
   }
   return email;
 }
@@ -108,4 +112,14 @@ export function parseBudget(input: string): number {
 export function parseOptionalBudget(input: string): number | null {
   if (!input.trim()) return null;
   return parseBudget(input);
+}
+
+/** Empty stays empty. Anything else must be an absolute http(s) URL with a host. */
+export function parsePurchaseLink(input: string | undefined): string {
+  const link = (input ?? "").trim();
+  if (!link) return "";
+  if (!parseHttpUrl(link)) {
+    throw new ValidationError("Enter a full http or https link, or leave it blank.");
+  }
+  return link;
 }
